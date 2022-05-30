@@ -140,7 +140,7 @@ func (ms *RequestLogger) httpLogRequest(w http.ResponseWriter, r *http.Request) 
   var bodyStr string
   var bodyLen int64
 
-  if ms.GetLogPayload() || ms.GetIsProxy(){
+  if ms.GetLogRequestPayload() || ms.GetIsProxy(){
     body = new(strings.Builder)
     bodyLen, _ = io.Copy(body, r.Body)
     bodyStr = body.String()
@@ -148,11 +148,11 @@ func (ms *RequestLogger) httpLogRequest(w http.ResponseWriter, r *http.Request) 
 
   ms.GetLogger().Printf("# %-6.6s | %s\n", r.Method, r.URL.String())
 
-  if ms.GetLogHeaders() {
+  if ms.GetLogRequestHeaders() {
     ms.logHeaders("<", &r.Header)
   }
 
-  if ms.GetLogPayload() {
+  if ms.GetLogRequestPayload() {
     ms.logPayload("<", bodyStr)
   }
 
@@ -182,11 +182,11 @@ func (ms *RequestLogger) httpLogRequest(w http.ResponseWriter, r *http.Request) 
 
   delHopHeaders(clientResponse.Header)
 
-  if ms.GetLogHeaders() {
+  if ms.GetLogAnswerHeaders() {
     ms.logHeaders(">", &clientResponse.Header)
   }
 
-  if ms.GetLogPayload() {
+  if ms.GetLogAnswerPayload() {
     body = new(strings.Builder)
     bodyLen, _ = io.Copy(body, clientResponse.Body)
     bodyStr = body.String()
