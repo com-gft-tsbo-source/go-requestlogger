@@ -64,19 +64,19 @@ func (ms *RequestLogger) httpLogRequest(w http.ResponseWriter, r *http.Request) 
 
     if n > 0 {
 
-      str = strings.Map(func(r rune) rune {
-        if unicode.IsPrint(r) {
-          return r
-        }
-         return rune('?')
-      }, str)
-
-
       hasLines = true
 
       for hasLines = true; hasLines; hasLines = len(pairs) > 1 {
 
         pairs = strings.SplitN(str, "\n", 2)
+
+        pairs[0] = strings.Map(func(r rune) rune {
+          if unicode.IsPrint(r) {
+            return r
+          }
+           return rune('?')
+        }, pairs[0])
+
         ms.GetLogger().Printf("  %6.6s | %s\n", "P", pairs[0])
 
         if len(pairs) > 1 {
@@ -86,6 +86,13 @@ func (ms *RequestLogger) httpLogRequest(w http.ResponseWriter, r *http.Request) 
         }
       }
       if len(str) > 0 {
+        str = strings.Map(func(r rune) rune {
+          if unicode.IsPrint(r) {
+            return r
+          }
+           return rune('?')
+        }, str)
+
         ms.GetLogger().Printf("  %-6.6s | %s\n", "", str)
       }
     }
