@@ -28,16 +28,29 @@ type ILoggingConfiguration interface {
 	SetEncodePayload(bool)
 }
 
+// ProxyConfiguration ...
+type ProxyConfiguration struct {
+  IsProxy bool
+}
+
+// ILoggingConfiguration ...
+type IProxyConfiguration interface {
+	GetIsProxy() bool
+	SetIsProxy(bool)
+}
+
 // Configuration ...
 type Configuration struct {
 	microservice.Configuration
   LoggingConfiguration
+  ProxyConfiguration
 }
 
 // IConfiguration ...
 type IConfiguration interface {
 	microservice.IConfiguration
   ILoggingConfiguration
+  IProxyConfiguration
 }
 
 // ---------------------------------------------------------------------------
@@ -66,6 +79,12 @@ func (cfg *LoggingConfiguration) GetEncodePayload() bool { return cfg.EncodePayl
 // SetEncodePayload ...
 func (cfg *LoggingConfiguration) SetEncodePayload(v bool) { cfg.EncodePayload = v }
 
+// GetIsProxy ...
+func (cfg *ProxyConfiguration) GetIsProxy() bool { return cfg.IsProxy }
+
+// SetIsProxy ...
+func (cfg *ProxyConfiguration) SetIsProxy(v bool) { cfg.IsProxy = v }
+
 // InitConfigurationFromArgs ...
 func InitConfigurationFromArgs(cfg *Configuration, args []string, flagset *flag.FlagSet) {
 	if flagset == nil {
@@ -75,6 +94,7 @@ func InitConfigurationFromArgs(cfg *Configuration, args []string, flagset *flag.
 	plineLength := flagset.Int("lineLength", -1, "Maximal line length of log output.")
 	plogHeaders := flagset.Bool("logHeaders", false, "Also log headers.")
 	plogPayload := flagset.Bool("logPayload", false, "Also log payload.")
+	pisProxy := flagset.Bool("isProxy", false, "Also log payload.")
 
 	microservice.InitConfigurationFromArgs(&cfg.Configuration, args, flagset)
 	flagset.Parse(os.Args[1:])
@@ -123,4 +143,20 @@ func InitConfigurationFromArgs(cfg *Configuration, args []string, flagset *flag.
 			cfg.SetLogPayload(false)
 		}
 	}
+
+	if *pisProxy {
+		cfg.SetIsProxy(*pisProxy)
+	} else {
+		ev := os.Getenv("REQUESTLOGGER_ISPROXY")
+		if len(ev) > 0 {
+			v, err := strconv.Atoi(ev)
+			if err != nil {
+				panic(err)
+			}
+			cfg.SetIsProxy(v != 0)
+		} else {
+			cfg.SetIsProxy(false)
+		}
+	}
 }
+
