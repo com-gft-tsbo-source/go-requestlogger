@@ -6,10 +6,18 @@ MODULE ?= application
 COMPONENT ?= requestlogger
 TARGET ?= $(PROJECT).$(MODULE).$(COMPONENT)
 
+CP ?= cp -pv
+MKDIR ?= mkdir -p
+LN ?= ln
+RM ?= rm
+ECHO ?= echo
+DOCKER ?= docker
+
+GIT_HOST ?= github.com
+GO_PROJECT := $(shell ( $(ECHO) "$(PROJECT)" | sed 's/\./-/g' ) )
 TIMESTAMP ?= $(shell date +%Y%m%d%H%M%S)
-GITHASH ?= $(shell ( git rev-parse HEAD 2>/dev/null || ( echo 'unknown' ; exit 0 ) ) ) 
-# GITHASH ?= $(shell ( ( echo rev-parse HEAD || ( echo 'unknown' ; exit 0 ) ) ) )
-_GITHASH := $(shell ( echo "$(GITHASH)" | sed 's/^ *//; s/  *$$//; s/  */\\|/g') )
+GITHASH ?= $(shell ( git rev-parse HEAD 2>/dev/null || ( $(ECHO) 'unknown' ; exit 0 ) ) ) 
+_GITHASH := $(shell ( $(ECHO) "$(GITHASH)" | sed 's/^ *//; s/  *$$//; s/  */\\|/g') )
 
 SRCS:=$(shell find . -name "*.go" )
 
@@ -20,18 +28,12 @@ GOMOD=$(GOCMD) mod
 GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
 
-BUILD_DIR ?= ./build-go/
+BUILD_DIR ?= ./build/
 BIN_DIR   ?= $(BUILD_DIR)/bin
 OBJ_DIR   ?= $(BUILD_DIR)/obj
 
 DOCKER_DIR   ?= $(BUILD_DIR)/docker
 DOCKER_VARIANT ?= alpine
-
-CP ?= cp -pv
-MKDIR ?= mkdir -p
-LN ?= ln
-RM ?= rm
-ECHO ?= echo
 
 all: bin
 
@@ -62,6 +64,12 @@ $(BIN_DIR)/$(TARGET): $(SRCS) Makefile go.mod go.sum
 	  "cmd/main.go"
 	@if [ ! -z "$(DIST_DIR)" ] ; then $(CP) "$(BIN_DIR)/$(TARGET)" "$(DIST_DIR)" ; fi
 
+go.mod:
+	@go mod init "$(GIT_HOST)/$(GO_PROJECT)/go-$(COMPONENT)"
+
+go.sum: go.mod
+	@go mod tidy
+
 ls:
 	@$(ECHO) "### GO  /LS    $(PROJECT).$(MODULE).$(COMPONENT) - $(DOCKER_VARIANT)"
 	@ls -l $(BIN_DIR)/$(TARGET) 2>/dev/null
@@ -75,8 +83,8 @@ docker-ls:
 		$(ECHO) "I $$img $$imgname" ; \
 		while read id state name image ; do \
 			printf 'C %-7s %-10s %-20s %s\n' "$$id" "$$state" "$$name" "$$image" ; \
-		done < <( docker container ls --filter "ancestor=$$img" --format='{{.ID}} {{.State}} {{.Names}} {{.Image}}'  | sort ) ; \
-	done < <(docker image ls --filter "label=PROJECT=$(PROJECT)" --filter "label=COMPONENT=$(COMPONENT)" --filter "label=MODULE=$(MODULE)" --filter "label=CUSTOMER=$(CUSTOMER)" --format='{{.ID}} {{.Repository}}:{{.Tag}}' | sort -k 2)
+		done < <( $(DOCKER) container ls --filter "ancestor=$$img" --format='{{.ID}} {{.State}} {{.Names}} {{.Image}}'  | sort ) ; \
+	done < <($(DOCKER) image ls --filter "label=PROJECT=$(PROJECT)" --filter "label=COMPONENT=$(COMPONENT)" --filter "label=MODULE=$(MODULE)" --filter "label=CUSTOMER=$(CUSTOMER)" --format='{{.ID}} {{.Repository}}:{{.Tag}}' | sort -k 2)
 
 dist:
 	@if [ ! -z "$(DIST_DIR)" ] ; then $(CP) "$(BIN_DIR)/$(TARGET)" "$(DIST_DIR)" ; fi
@@ -88,9 +96,9 @@ $(DOCKER_DIR)/$(TARGET)-$(DOCKER_VARIANT).iid: Dockerfile-$(DOCKER_VARIANT) \
 	                             $(SRCS) \
 	                             Makefile
 	@$(ECHO) "### GO  /DOCK  $(PROJECT).$(MODULE).$(COMPONENT) - $(DOCKER_VARIANT)"
-	@if [ -f "$(DOCKER_DIR)/$(TARGET)-$(DOCKER_VARIANT).iid" ] ; then i=$$( cat "$(DOCKER_DIR)/$(TARGET)-$(DOCKER_VARIANT).iid" ); docker image rm -f $$i ; rm -f "$(DOCKER_DIR)/$(TARGET)-$(DOCKER_VARIANT).iid"  2>/dev/null ; fi
+	@if [ -f "$(DOCKER_DIR)/$(TARGET)-$(DOCKER_VARIANT).iid" ] ; then i=$$( cat "$(DOCKER_DIR)/$(TARGET)-$(DOCKER_VARIANT).iid" ); $(DOCKER) image rm -f $$i ; rm -f "$(DOCKER_DIR)/$(TARGET)-$(DOCKER_VARIANT).iid"  2>/dev/null ; fi
 	@$(MKDIR) "$(DOCKER_DIR)" 
-	@docker image build -f ./Dockerfile-$(DOCKER_VARIANT) \
+	@$(DOCKER) image build -f ./Dockerfile-$(DOCKER_VARIANT) \
 	  --build-arg GITHASH="$(_GITHASH)" \
 	  --build-arg COMPONENT=$(COMPONENT) \
 	  --build-arg MODULE=$(MODULE) \
@@ -105,9 +113,6 @@ $(DOCKER_DIR)/$(TARGET)-$(DOCKER_VARIANT).iid: Dockerfile-$(DOCKER_VARIANT) \
 	  --iidfile "$(DOCKER_DIR)/$(TARGET)-$(DOCKER_VARIANT).iid" \
 	  .
 
-go.sum: go.mod
-	@go mod tidy
-  
 clean:
 	@$(ECHO) "### GO  /CLEAN $(PROJECT).$(MODULE).$(COMPONENT) - $(DOCKER_VARIANT)"
 	@$(RM) -rf $(BIN_DIR)/$(TARGET) $(OBJ_DIR)
@@ -118,12 +123,12 @@ docker-clean:
 	@while read img imgname ; do \
 		while read id state name image ; do \
 			printf 'C %-7s %-10s %-20s %s\n' "$$id" "$$state" "$$name" "$$image" ; \
-			docker container stop --time 5 "$$id" ; \
-		done < <( docker container ls --filter "ancestor=$$img" --format='{{.ID}} {{.State}} {{.Names}} {{.Image}}'  | sort ) ; \
+			$(DOCKER) container stop --time 5 "$$id" ; \
+		done < <( $(DOCKER) container ls --filter "ancestor=$$img" --format='{{.ID}} {{.State}} {{.Names}} {{.Image}}'  | sort ) ; \
 		$(ECHO) "I $$img $$imgname" ; \
-		docker image rm -f $$img ; \
-		done < <(docker image ls --filter "label=PROJECT=$(PROJECT)" --filter "label=COMPONENT=$(COMPONENT)" --filter "label=MODULE=$(MODULE)" --filter "label=CUSTOMER=$(CUSTOMER)" --format='{{.ID}} {{.Repository}}:{{.Tag}}' "$(TARGET):base" | sort -k 2)
-	@if [ -f "$(DOCKER_DIR)/$(TARGET)-$(DOCKER_VARIANT).iid" ] ; then i=$$( cat "$(DOCKER_DIR)/$(TARGET)-$(DOCKER_VARIANT).iid" ); docker image rm -f $$i 2>/dev/null ; rm -f "$(DOCKER_DIR)/$(TARGET)-$(DOCKER_VARIANT).iid"  2>/dev/null ; fi
+		$(DOCKER) image rm -f $$img ; \
+		done < <($(DOCKER) image ls --filter "label=PROJECT=$(PROJECT)" --filter "label=COMPONENT=$(COMPONENT)" --filter "label=MODULE=$(MODULE)" --filter "label=CUSTOMER=$(CUSTOMER)" --format='{{.ID}} {{.Repository}}:{{.Tag}}' "$(TARGET):base" | sort -k 2)
+	@if [ -f "$(DOCKER_DIR)/$(TARGET)-$(DOCKER_VARIANT).iid" ] ; then i=$$( cat "$(DOCKER_DIR)/$(TARGET)-$(DOCKER_VARIANT).iid" ); $(DOCKER) image rm -f $$i 2>/dev/null ; rm -f "$(DOCKER_DIR)/$(TARGET)-$(DOCKER_VARIANT).iid"  2>/dev/null ; fi
 
 distclean:
 	@$(ECHO) "### GO  /DICLN $(PROJECT).$(MODULE).$(COMPONENT) - $(DOCKER_VARIANT)"
