@@ -1,0 +1,5 @@
+CUSTOMER ?= com.gft.tsbo
+PROJECT ?= com.gft.tsbo.source
+MODULE ?= backend
+COMPONENT ?= requestlogger
+GIT_HOST ?= github.com
