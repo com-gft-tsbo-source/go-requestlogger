@@ -157,7 +157,7 @@ func (ms *RequestLogger) httpLogRequest(w http.ResponseWriter, r *http.Request) 
   }
 
   if ! ms.GetIsProxy() {
-    microservice.InitResponseFromMicroService(&response, ms, msg)
+    microservice.InitResponseFromMicroService(&response, ms, http.StatusOK, msg)
 	  ms.SetResponseHeaders("application/json; charset=utf-8", w, r)
   	w.WriteHeader(http.StatusOK)
 	  contentLen = ms.Reply(w, response)
